@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong</title>
+</head>
+<body>
+    <p>Player one : Up - W and Down - S</p>
+    <p>Player two : Up - ↑ and Down - ↓</p>
+</body>
+</html>
+<!--Meine Leinwand-->
+
+<canvas id="ca"
+ width="720"
+  height="480"
+  style="background-color: black;">
+</canvas>
+
+<!--Script function-->
+
+<script>
+
+    let ctx = ca.getContext("2d");
+    let p1 = 80;
+    let p2 = 200;
+    let key = {};
+    let ball = {
+        x: 360,
+        y: 240,
+        speetx: 3,
+        speety: 0,
+    };
+
+    document.addEventListener('keydown', e => key[e.keyCode] = true);
+    document.addEventListener('keyup', e => key[e.keyCode] = false);
+
+    draw();
+
+    setInterval(loop, 1000 / 60);
+    //ctx.fillStyle = "white";
+    function draw() {
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, 720, 480);
+       ctx.fillStyle = "white";
+         ctx.fillRect(10, p1, 10, 80);
+            ctx.fillRect(700, p2, 10, 80);
+            ctx.fillRect(ball.x, ball.y, 10, 10);
+
+         requestAnimationFrame(draw);
+    }
+
+    function loop() {
+        if (key[38] && p1 > 0) p1 -= 5; // Player 1 up
+        if (key[40] && p1 < 400) p1 += 5; // Player 1 down
+        if (key[87] && p2 > 0) p2 -= 5; // Player 2 up
+        if (key[83] && p2 < 400) p2 += 5; // Player 2 down
+
+        ball.x += ball.speetx;
+        ball.y += ball.speety;
+
+        // Ball collision with top and bottom walls
+        if (ball.y < 0 || ball.y > 470) ball.speety *= -1;
+
+        // Ball collision with paddles
+        if (ball.x < 20 && ball.y > p1 && ball.y < p1 + 80) {
+            ball.speetx *= -1;
+            ball.speety = (ball.y - (p1 + 40)) * 0.2; // Add spin based on hit position
+        }
+        if (ball.x > 690 && ball.y > p2 && ball.y < p2 + 80) {
+            ball.speetx *= -1;
+            ball.speety = (ball.y - (p2 + 40)) * 0.2; // Add spin based on hit position
+        }
+
+        // Reset ball if it goes out of bounds
+        if (ball.x < 0 || ball.x > 720) {
+            resetBall();
+        }
+    }
+
+    function reset() {
+        ball.x = 360;
+        ball.y = 240;
+        ball.speetx = 3;
+        ball.speety = 0;
+    }
+    function resetBall() {
+        ball.x = 360;
+        ball.y = 240;
+        ball.speetx = 3;
+        ball.speety = 0;
+    }
+
+</script>

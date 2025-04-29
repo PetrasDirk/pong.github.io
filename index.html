@@ -1,229 +1,240 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pong</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pong mit Schwierigkeitsgrad</title>
   <style>
-    canvas {
-      background-color: black;
-      display: block;
-      margin: 0 auto;
-    }
-    #controls {
-      text-align: center;
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #111;
       color: white;
       font-family: Arial, sans-serif;
+      text-align: center;
     }
-    body {
-      background-color: #111;
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background-color: black;
     }
+
     button {
-      margin-top: 10px;
-      padding: 8px 16px;
-      font-size: 16px;
+      padding: 10px 20px;
+      font-size: 1rem;
+      margin: 10px;
       cursor: pointer;
+      border-radius: 5px;
+    }
+
+    .easy    { background-color: green; }
+    .medium  { background-color: goldenrod; }
+    .hard    { background-color: crimson; }
+
+    #startMenu, #gameUI, #winnerMessage {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      canvas { width: 100% !important; height: auto !important; }
+      button { font-size: 1.2rem; }
     }
   </style>
 </head>
 <body>
+  <h1>PONG</h1>
+
+  <div id="startMenu">
+    <p>Spieler 1: W / S &nbsp; | &nbsp; Spieler 2: ↑ / ↓</p>
+    <p>Wer zuerst 5 Punkte hat, gewinnt!</p>
+    <p>Highscore (schnellster Sieg): <span id="highscoreDisplay">–</span></p>
+    <p>Wähle einen Schwierigkeitsgrad:</p>
+    <div>
+      <button class="easy" onclick="startGame(2)">🟢 Leicht</button>
+      <button class="medium" onclick="startGame(4)">🟡 Mittel</button>
+      <button class="hard" onclick="startGame(6)">🔴 Schwer</button>
+    </div>
+  </div>
+
   <canvas id="ca" width="720" height="480"></canvas>
-  <div id="controls">
+
+  <div id="gameUI">
     <button id="restartBtn">Neustarten</button>
-    <p>Spieler 1: W / S &nbsp;&nbsp;|&nbsp;&nbsp; Spieler 2: ↑ / ↓</p>
+    <div id="winnerMessage"></div>
   </div>
 
   <script>
     const canvas = document.getElementById("ca");
     const ctx = canvas.getContext("2d");
-  
+
+    const startMenu = document.getElementById("startMenu");
+    const gameUI = document.getElementById("gameUI");
+    const restartBtn = document.getElementById("restartBtn");
+    const winnerMessage = document.getElementById("winnerMessage");
+    const highscoreDisplay = document.getElementById("highscoreDisplay");
+
     const WIDTH = canvas.width;
     const HEIGHT = canvas.height;
-  
+
     const paddleWidth = 10;
     const paddleHeight = 100;
-    let leftY = HEIGHT / 2 - paddleHeight / 2;
-    let rightY = HEIGHT / 2 - paddleHeight / 2;
+    let leftY, rightY;
     const paddleSpeed = 5;
-  
+
     const ballSize = 10;
     let ballX, ballY, ballSpeedX, ballSpeedY;
-  
+    let baseBallSpeed = 4; // wird durch Schwierigkeit überschrieben
+
     let scoreLeft = 0;
     let scoreRight = 0;
+    let highscore = localStorage.getItem("pongHighscore") || "–";
+    let frameCount = 0;
     let gameOver = false;
-    let winnerText = "";
-    let backgroundFlash = false;
-    let flashColor = "black";
-  
-    // Eingebettete Sounds (Base64)
+
     const hitSound = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAADr/AAD6/wAA+v8AAPz/AAD8/wAA/f8AAPz/AAD9/wAA/v8AAP7/AAD+/wAA/v8AAP7/AAD//wAA");
     const pointSound = new Audio("data:audio/wav;base64,UklGRiwAAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQAAAEj/AAD8/wAA/P8AAPz/AAD8/wAA/f8AAP//AAD//wAA//8AAP//AAD+/wAA/v8AAP3/AAD+/wAA");
-  
+
     const keys = {};
     document.addEventListener("keydown", (e) => keys[e.key] = true);
     document.addEventListener("keyup", (e) => keys[e.key] = false);
-  
+
     function resetBall() {
       ballX = WIDTH / 2;
       ballY = HEIGHT / 2;
-      ballSpeedX = Math.random() > 0.5 ? 4 : -4;
-      ballSpeedY = (Math.random() * 4 - 2);
+      const dirX = Math.random() > 0.5 ? 1 : -1;
+      const dirY = Math.random() > 0.5 ? 1 : -1;
+      ballSpeedX = dirX * baseBallSpeed;
+      ballSpeedY = dirY * (Math.random() * baseBallSpeed / 2);
     }
-  
+
     function resetGame() {
       scoreLeft = 0;
       scoreRight = 0;
       leftY = rightY = HEIGHT / 2 - paddleHeight / 2;
       gameOver = false;
-      winnerText = "";
-      backgroundFlash = false;
-      flashColor = "black";
+      winnerMessage.innerHTML = "";
+      canvas.style.backgroundColor = "black";
+      frameCount = 0;
       resetBall();
+      gameUI.style.display = "block";
     }
-  
-    document.getElementById("restartBtn").addEventListener("click", resetGame);
-  
+
+    function showStartMenu() {
+      startMenu.style.display = "block";
+      canvas.style.display = "none";
+      gameUI.style.display = "none";
+      highscoreDisplay.textContent = highscore;
+    }
+
+    function startGame(speed) {
+      baseBallSpeed = speed;
+      startMenu.style.display = "none";
+      canvas.style.display = "block";
+      resetGame();
+      gameLoop();
+    }
+
+    restartBtn.onclick = () => {
+      showStartMenu();
+    };
+
     function drawMiddleLine() {
       ctx.strokeStyle = "white";
       ctx.lineWidth = 2;
-      const dashHeight = 10;
-      const gap = 5;
-      const x = WIDTH / 2;
-  
-      for (let y = 0; y < HEIGHT; y += dashHeight + gap) {
+      for (let y = 0; y < HEIGHT; y += 15) {
         ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x, y + dashHeight);
+        ctx.moveTo(WIDTH / 2, y);
+        ctx.lineTo(WIDTH / 2, y + 10);
         ctx.stroke();
       }
     }
-  
+
     function drawPaddles() {
       ctx.fillStyle = "white";
       ctx.fillRect(10, leftY, paddleWidth, paddleHeight);
       ctx.fillRect(WIDTH - 10 - paddleWidth, rightY, paddleWidth, paddleHeight);
     }
-  
+
     function drawBall() {
       ctx.fillStyle = "white";
       ctx.fillRect(ballX - ballSize / 2, ballY - ballSize / 2, ballSize, ballSize);
     }
-  
+
     function drawScore() {
       ctx.fillStyle = "white";
       ctx.font = "32px Arial";
       ctx.textAlign = "center";
       ctx.fillText(`${scoreLeft} : ${scoreRight}`, WIDTH / 2, 40);
     }
-  
-    function drawWinner() {
-      if (gameOver) {
-        ctx.save();
-        ctx.fillStyle = "yellow";
-        ctx.font = "bold 48px Arial";
-        ctx.textAlign = "center";
-  
-        const jitterX = Math.random() * 6 - 3;
-        const jitterY = Math.random() * 6 - 3;
-        ctx.translate(WIDTH / 2 + jitterX, HEIGHT / 2 + jitterY);
-  
-        ctx.shadowColor = "magenta";
-        ctx.shadowBlur = 20;
-        ctx.fillText(winnerText, 0, 0);
-        ctx.restore();
-      }
+
+    function drawWinner(text) {
+      winnerMessage.innerHTML = `<h2 style="color:yellow; animation: wobble 0.5s infinite;">${text}</h2>`;
+      canvas.style.backgroundColor = "magenta";
     }
-  
+
+    const style = document.createElement("style");
+    style.innerHTML = `@keyframes wobble {
+      0% {transform: rotate(-2deg);}
+      50% {transform: rotate(2deg);}
+      100% {transform: rotate(-2deg);}
+    }`;
+    document.head.appendChild(style);
+
     function update() {
       if (gameOver) return;
-  
+
       if (keys["w"] && leftY > 0) leftY -= paddleSpeed;
       if (keys["s"] && leftY + paddleHeight < HEIGHT) leftY += paddleSpeed;
       if (keys["ArrowUp"] && rightY > 0) rightY -= paddleSpeed;
       if (keys["ArrowDown"] && rightY + paddleHeight < HEIGHT) rightY += paddleSpeed;
-  
+
       ballX += ballSpeedX;
       ballY += ballSpeedY;
-  
-      if (ballY <= 0 || ballY >= HEIGHT) {
-        ballSpeedY *= -1;
+      frameCount++;
+
+      if (ballY <= 0 || ballY >= HEIGHT) ballSpeedY *= -1;
+
+      if (ballX - ballSize / 2 <= 10 + paddleWidth && ballY > leftY && ballY < leftY + paddleHeight) {
+        ballSpeedX *= -1; hitSound.play();
       }
-  
-      if (
-        ballX - ballSize / 2 <= 10 + paddleWidth &&
-        ballY > leftY &&
-        ballY < leftY + paddleHeight
-      ) {
-        ballSpeedX *= -1;
-        ballX = 10 + paddleWidth + ballSize / 2;
-        hitSound.currentTime = 0;
-        hitSound.play();
+      if (ballX + ballSize / 2 >= WIDTH - 10 - paddleWidth && ballY > rightY && ballY < rightY + paddleHeight) {
+        ballSpeedX *= -1; hitSound.play();
       }
-  
-      if (
-        ballX + ballSize / 2 >= WIDTH - 10 - paddleWidth &&
-        ballY > rightY &&
-        ballY < rightY + paddleHeight
-      ) {
-        ballSpeedX *= -1;
-        ballX = WIDTH - 10 - paddleWidth - ballSize / 2;
-        hitSound.currentTime = 0;
-        hitSound.play();
-      }
-  
+
       if (ballX < 0) {
-        scoreRight++;
-        pointSound.currentTime = 0;
-        pointSound.play();
-        resetBall();
+        scoreRight++; pointSound.play(); resetBall();
       }
-  
       if (ballX > WIDTH) {
-        scoreLeft++;
-        pointSound.currentTime = 0;
-        pointSound.play();
-        resetBall();
+        scoreLeft++; pointSound.play(); resetBall();
       }
-  
-      if (scoreLeft >= 5) {
-        winnerText = "🎉 Spieler 1 gewinnt! 🎉";
+
+      if (scoreLeft >= 5 || scoreRight >= 5) {
         gameOver = true;
-        startFlash();
-      }
-  
-      if (scoreRight >= 5) {
-        winnerText = "🎉 Spieler 2 gewinnt! 🎉";
-        gameOver = true;
-        startFlash();
+        const winner = scoreLeft > scoreRight ? "🎉 Spieler 1 gewinnt!" : "🎉 Spieler 2 gewinnt!";
+        drawWinner(winner);
+        const hs = localStorage.getItem("pongHighscore");
+        if (hs === null || parseInt(frameCount) < parseInt(hs)) {
+          localStorage.setItem("pongHighscore", frameCount);
+        }
       }
     }
-  
-    function startFlash() {
-      backgroundFlash = true;
-    }
-  
-    function gameLoop() {
-      if (backgroundFlash) {
-        flashColor = `hsl(${Math.floor(Math.random() * 360)}, 100%, 50%)`;
-        canvas.style.backgroundColor = flashColor;
-      } else {
-        canvas.style.backgroundColor = "black";
-      }
-  
+
+    function draw() {
       ctx.clearRect(0, 0, WIDTH, HEIGHT);
       drawMiddleLine();
       drawPaddles();
       drawBall();
       drawScore();
-      drawWinner();
-      update();
-      requestAnimationFrame(gameLoop);
     }
-  
-    resetGame();
-    gameLoop();
-  </script>
 
+    function gameLoop() {
+      if (!gameOver) requestAnimationFrame(gameLoop);
+      update();
+      draw();
+    }
+
+    showStartMenu();
+  </script>
 </body>
 </html>

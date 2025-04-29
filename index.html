@@ -1,95 +1,229 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pong</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pong</title>
+  <style>
+    canvas {
+      background-color: black;
+      display: block;
+      margin: 0 auto;
+    }
+    #controls {
+      text-align: center;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    body {
+      background-color: #111;
+    }
+    button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
-    <p>Player one : Up - W and Down - S</p>
-    <p>Player two : Up - ↑ and Down - ↓</p>
+  <canvas id="ca" width="720" height="480"></canvas>
+  <div id="controls">
+    <button id="restartBtn">Neustarten</button>
+    <p>Spieler 1: W / S &nbsp;&nbsp;|&nbsp;&nbsp; Spieler 2: ↑ / ↓</p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("ca");
+    const ctx = canvas.getContext("2d");
+  
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+  
+    const paddleWidth = 10;
+    const paddleHeight = 100;
+    let leftY = HEIGHT / 2 - paddleHeight / 2;
+    let rightY = HEIGHT / 2 - paddleHeight / 2;
+    const paddleSpeed = 5;
+  
+    const ballSize = 10;
+    let ballX, ballY, ballSpeedX, ballSpeedY;
+  
+    let scoreLeft = 0;
+    let scoreRight = 0;
+    let gameOver = false;
+    let winnerText = "";
+    let backgroundFlash = false;
+    let flashColor = "black";
+  
+    // Eingebettete Sounds (Base64)
+    const hitSound = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAADr/AAD6/wAA+v8AAPz/AAD8/wAA/f8AAPz/AAD9/wAA/v8AAP7/AAD+/wAA/v8AAP7/AAD//wAA");
+    const pointSound = new Audio("data:audio/wav;base64,UklGRiwAAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQAAAEj/AAD8/wAA/P8AAPz/AAD8/wAA/f8AAP//AAD//wAA//8AAP//AAD+/wAA/v8AAP3/AAD+/wAA");
+  
+    const keys = {};
+    document.addEventListener("keydown", (e) => keys[e.key] = true);
+    document.addEventListener("keyup", (e) => keys[e.key] = false);
+  
+    function resetBall() {
+      ballX = WIDTH / 2;
+      ballY = HEIGHT / 2;
+      ballSpeedX = Math.random() > 0.5 ? 4 : -4;
+      ballSpeedY = (Math.random() * 4 - 2);
+    }
+  
+    function resetGame() {
+      scoreLeft = 0;
+      scoreRight = 0;
+      leftY = rightY = HEIGHT / 2 - paddleHeight / 2;
+      gameOver = false;
+      winnerText = "";
+      backgroundFlash = false;
+      flashColor = "black";
+      resetBall();
+    }
+  
+    document.getElementById("restartBtn").addEventListener("click", resetGame);
+  
+    function drawMiddleLine() {
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 2;
+      const dashHeight = 10;
+      const gap = 5;
+      const x = WIDTH / 2;
+  
+      for (let y = 0; y < HEIGHT; y += dashHeight + gap) {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + dashHeight);
+        ctx.stroke();
+      }
+    }
+  
+    function drawPaddles() {
+      ctx.fillStyle = "white";
+      ctx.fillRect(10, leftY, paddleWidth, paddleHeight);
+      ctx.fillRect(WIDTH - 10 - paddleWidth, rightY, paddleWidth, paddleHeight);
+    }
+  
+    function drawBall() {
+      ctx.fillStyle = "white";
+      ctx.fillRect(ballX - ballSize / 2, ballY - ballSize / 2, ballSize, ballSize);
+    }
+  
+    function drawScore() {
+      ctx.fillStyle = "white";
+      ctx.font = "32px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(`${scoreLeft} : ${scoreRight}`, WIDTH / 2, 40);
+    }
+  
+    function drawWinner() {
+      if (gameOver) {
+        ctx.save();
+        ctx.fillStyle = "yellow";
+        ctx.font = "bold 48px Arial";
+        ctx.textAlign = "center";
+  
+        const jitterX = Math.random() * 6 - 3;
+        const jitterY = Math.random() * 6 - 3;
+        ctx.translate(WIDTH / 2 + jitterX, HEIGHT / 2 + jitterY);
+  
+        ctx.shadowColor = "magenta";
+        ctx.shadowBlur = 20;
+        ctx.fillText(winnerText, 0, 0);
+        ctx.restore();
+      }
+    }
+  
+    function update() {
+      if (gameOver) return;
+  
+      if (keys["w"] && leftY > 0) leftY -= paddleSpeed;
+      if (keys["s"] && leftY + paddleHeight < HEIGHT) leftY += paddleSpeed;
+      if (keys["ArrowUp"] && rightY > 0) rightY -= paddleSpeed;
+      if (keys["ArrowDown"] && rightY + paddleHeight < HEIGHT) rightY += paddleSpeed;
+  
+      ballX += ballSpeedX;
+      ballY += ballSpeedY;
+  
+      if (ballY <= 0 || ballY >= HEIGHT) {
+        ballSpeedY *= -1;
+      }
+  
+      if (
+        ballX - ballSize / 2 <= 10 + paddleWidth &&
+        ballY > leftY &&
+        ballY < leftY + paddleHeight
+      ) {
+        ballSpeedX *= -1;
+        ballX = 10 + paddleWidth + ballSize / 2;
+        hitSound.currentTime = 0;
+        hitSound.play();
+      }
+  
+      if (
+        ballX + ballSize / 2 >= WIDTH - 10 - paddleWidth &&
+        ballY > rightY &&
+        ballY < rightY + paddleHeight
+      ) {
+        ballSpeedX *= -1;
+        ballX = WIDTH - 10 - paddleWidth - ballSize / 2;
+        hitSound.currentTime = 0;
+        hitSound.play();
+      }
+  
+      if (ballX < 0) {
+        scoreRight++;
+        pointSound.currentTime = 0;
+        pointSound.play();
+        resetBall();
+      }
+  
+      if (ballX > WIDTH) {
+        scoreLeft++;
+        pointSound.currentTime = 0;
+        pointSound.play();
+        resetBall();
+      }
+  
+      if (scoreLeft >= 5) {
+        winnerText = "🎉 Spieler 1 gewinnt! 🎉";
+        gameOver = true;
+        startFlash();
+      }
+  
+      if (scoreRight >= 5) {
+        winnerText = "🎉 Spieler 2 gewinnt! 🎉";
+        gameOver = true;
+        startFlash();
+      }
+    }
+  
+    function startFlash() {
+      backgroundFlash = true;
+    }
+  
+    function gameLoop() {
+      if (backgroundFlash) {
+        flashColor = `hsl(${Math.floor(Math.random() * 360)}, 100%, 50%)`;
+        canvas.style.backgroundColor = flashColor;
+      } else {
+        canvas.style.backgroundColor = "black";
+      }
+  
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      drawMiddleLine();
+      drawPaddles();
+      drawBall();
+      drawScore();
+      drawWinner();
+      update();
+      requestAnimationFrame(gameLoop);
+    }
+  
+    resetGame();
+    gameLoop();
+  </script>
+
 </body>
 </html>
-<!--Meine Leinwand-->
-
-<canvas id="ca"
- width="720"
-  height="480"
-  style="background-color: black;">
-</canvas>
-
-<!--Script function-->
-
-<script>
-
-    let ctx = ca.getContext("2d");
-    let p1 = 80;
-    let p2 = 200;
-    let key = {};
-    let ball = {
-        x: 360,
-        y: 240,
-        speetx: 3,
-        speety: 0,
-    };
-
-    document.addEventListener('keydown', e => key[e.keyCode] = true);
-    document.addEventListener('keyup', e => key[e.keyCode] = false);
-
-    draw();
-
-    setInterval(loop, 1000 / 60);
-    //ctx.fillStyle = "white";
-    function draw() {
-        ctx.fillStyle = "black";
-        ctx.fillRect(0, 0, 720, 480);
-       ctx.fillStyle = "white";
-         ctx.fillRect(10, p1, 10, 80);
-            ctx.fillRect(700, p2, 10, 80);
-            ctx.fillRect(ball.x, ball.y, 10, 10);
-
-         requestAnimationFrame(draw);
-    }
-
-    function loop() {
-        if (key[38] && p1 > 0) p1 -= 5; // Player 1 up
-        if (key[40] && p1 < 400) p1 += 5; // Player 1 down
-        if (key[87] && p2 > 0) p2 -= 5; // Player 2 up
-        if (key[83] && p2 < 400) p2 += 5; // Player 2 down
-
-        ball.x += ball.speetx;
-        ball.y += ball.speety;
-
-        // Ball collision with top and bottom walls
-        if (ball.y < 0 || ball.y > 470) ball.speety *= -1;
-
-        // Ball collision with paddles
-        if (ball.x < 20 && ball.y > p1 && ball.y < p1 + 80) {
-            ball.speetx *= -1;
-            ball.speety = (ball.y - (p1 + 40)) * 0.2; // Add spin based on hit position
-        }
-        if (ball.x > 690 && ball.y > p2 && ball.y < p2 + 80) {
-            ball.speetx *= -1;
-            ball.speety = (ball.y - (p2 + 40)) * 0.2; // Add spin based on hit position
-        }
-
-        // Reset ball if it goes out of bounds
-        if (ball.x < 0 || ball.x > 720) {
-            resetBall();
-        }
-    }
-
-    function reset() {
-        ball.x = 360;
-        ball.y = 240;
-        ball.speetx = 3;
-        ball.speety = 0;
-    }
-    function resetBall() {
-        ball.x = 360;
-        ball.y = 240;
-        ball.speetx = 3;
-        ball.speety = 0;
-    }
-
-</script>

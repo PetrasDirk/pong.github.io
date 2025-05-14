@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pong mit Schwierigkeitsgrad</title>
+  <title>PONG mit CPU-Gegner & Touch</title>
   <style>
     html, body {
       margin: 0;
@@ -36,19 +36,44 @@
       display: none;
     }
 
+    #touchControls {
+      display: none;
+    }
+
+    .touch-btn {
+      width: 48%;
+      height: 60px;
+      font-size: 1.2rem;
+      margin: 5px;
+      border-radius: 10px;
+    }
+
     @media (max-width: 768px) {
       canvas { width: 100% !important; height: auto !important; }
       button { font-size: 1.2rem; }
+      #touchControls { display: block; }
+    }
+
+    @keyframes wobble {
+      0% {transform: rotate(-2deg);}
+      50% {transform: rotate(2deg);}
+      100% {transform: rotate(-2deg);}
     }
   </style>
 </head>
 <body>
   <h1>PONG</h1>
 
+  <!-- Startmenü mit Auswahl für CPU und Schwierigkeit -->
   <div id="startMenu">
     <p>Spieler 1: W / S &nbsp; | &nbsp; Spieler 2: ↑ / ↓</p>
+    <p>Oder gegen den <strong>Computer</strong> spielen!</p>
     <p>Wer zuerst 5 Punkte hat, gewinnt!</p>
     <p>Highscore (schnellster Sieg): <span id="highscoreDisplay">–</span></p>
+    <label>
+      <input type="checkbox" id="cpuToggle" />
+      Gegen CPU spielen
+    </label>
     <p>Wähle einen Schwierigkeitsgrad:</p>
     <div>
       <button class="easy" onclick="startGame(2)">🟢 Leicht</button>
@@ -57,48 +82,70 @@
     </div>
   </div>
 
+  <!-- Canvas -->
   <canvas id="ca" width="720" height="480"></canvas>
 
+  <!-- Mobile Touchsteuerung -->
+  <div id="touchControls">
+    <button class="touch-btn" ontouchstart="touchMove(-1)" ontouchend="touchMove(0)">⬆️ Hoch</button>
+    <button class="touch-btn" ontouchstart="touchMove(1)" ontouchend="touchMove(0)">⬇️ Runter</button>
+  </div>
+
+  <!-- UI für laufendes Spiel -->
   <div id="gameUI">
     <button id="restartBtn">Neustarten</button>
     <div id="winnerMessage"></div>
   </div>
 
   <script>
+    // ==== Canvas & Elemente ====
     const canvas = document.getElementById("ca");
     const ctx = canvas.getContext("2d");
 
     const startMenu = document.getElementById("startMenu");
     const gameUI = document.getElementById("gameUI");
-    const restartBtn = document.getElementById("restartBtn");
     const winnerMessage = document.getElementById("winnerMessage");
+    const restartBtn = document.getElementById("restartBtn");
     const highscoreDisplay = document.getElementById("highscoreDisplay");
+    const cpuToggle = document.getElementById("cpuToggle");
 
     const WIDTH = canvas.width;
     const HEIGHT = canvas.height;
 
+    // ==== Paddle ====
     const paddleWidth = 10;
     const paddleHeight = 100;
     let leftY, rightY;
     const paddleSpeed = 5;
 
+    // ==== Ball ====
     const ballSize = 10;
     let ballX, ballY, ballSpeedX, ballSpeedY;
-    let baseBallSpeed = 4; // wird durch Schwierigkeit überschrieben
+    let baseBallSpeed = 4; // wird bei Spielstart gesetzt
 
+    // ==== Punkte & Steuerung ====
     let scoreLeft = 0;
     let scoreRight = 0;
-    let highscore = localStorage.getItem("pongHighscore") || "–";
+    let keys = {};
+    let touchDirection = 0;
+    let useCPU = false;
     let frameCount = 0;
     let gameOver = false;
 
+    // ==== Audio (eingebettet) ====
     const hitSound = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAADr/AAD6/wAA+v8AAPz/AAD8/wAA/f8AAPz/AAD9/wAA/v8AAP7/AAD+/wAA/v8AAP7/AAD//wAA");
     const pointSound = new Audio("data:audio/wav;base64,UklGRiwAAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQAAAEj/AAD8/wAA/P8AAPz/AAD8/wAA/f8AAP//AAD//wAA//8AAP//AAD+/wAA/v8AAP3/AAD+/wAA");
 
-    const keys = {};
+    // ==== Touchsteuerung ====
+    function touchMove(dir) {
+      touchDirection = dir;
+    }
+
+    // ==== Tastensteuerung ====
     document.addEventListener("keydown", (e) => keys[e.key] = true);
     document.addEventListener("keyup", (e) => keys[e.key] = false);
 
+    // ==== Spielstand zurücksetzen ====
     function resetBall() {
       ballX = WIDTH / 2;
       ballY = HEIGHT / 2;
@@ -112,33 +159,39 @@
       scoreLeft = 0;
       scoreRight = 0;
       leftY = rightY = HEIGHT / 2 - paddleHeight / 2;
+      frameCount = 0;
       gameOver = false;
       winnerMessage.innerHTML = "";
       canvas.style.backgroundColor = "black";
-      frameCount = 0;
       resetBall();
-      gameUI.style.display = "block";
     }
 
+    // ==== Menü anzeigen ====
     function showStartMenu() {
       startMenu.style.display = "block";
       canvas.style.display = "none";
       gameUI.style.display = "none";
-      highscoreDisplay.textContent = highscore;
+      highscoreDisplay.textContent = localStorage.getItem("pongHighscore") || "–";
     }
 
+    // ==== Spiel starten ====
     function startGame(speed) {
       baseBallSpeed = speed;
-      startMenu.style.display = "none";
-      canvas.style.display = "block";
+      useCPU = cpuToggle.checked;
+      showCanvas();
       resetGame();
       gameLoop();
     }
 
-    restartBtn.onclick = () => {
-      showStartMenu();
-    };
+    function showCanvas() {
+      startMenu.style.display = "none";
+      canvas.style.display = "block";
+      gameUI.style.display = "block";
+    }
 
+    restartBtn.onclick = () => showStartMenu();
+
+    // ==== Zeichnungen ====
     function drawMiddleLine() {
       ctx.strokeStyle = "white";
       ctx.lineWidth = 2;
@@ -173,28 +226,32 @@
       canvas.style.backgroundColor = "magenta";
     }
 
-    const style = document.createElement("style");
-    style.innerHTML = `@keyframes wobble {
-      0% {transform: rotate(-2deg);}
-      50% {transform: rotate(2deg);}
-      100% {transform: rotate(-2deg);}
-    }`;
-    document.head.appendChild(style);
-
+    // ==== Spiel-Logik ====
     function update() {
       if (gameOver) return;
 
-      if (keys["w"] && leftY > 0) leftY -= paddleSpeed;
-      if (keys["s"] && leftY + paddleHeight < HEIGHT) leftY += paddleSpeed;
-      if (keys["ArrowUp"] && rightY > 0) rightY -= paddleSpeed;
-      if (keys["ArrowDown"] && rightY + paddleHeight < HEIGHT) rightY += paddleSpeed;
+      // Spieler 1 (links) – Tastatur oder Touch
+      if (keys["w"] || touchDirection === -1) leftY -= paddleSpeed;
+      if (keys["s"] || touchDirection === 1)  leftY += paddleSpeed;
+      leftY = Math.max(0, Math.min(HEIGHT - paddleHeight, leftY));
 
+      // Spieler 2 (rechts) – Tastatur oder CPU
+      if (useCPU) {
+        if (ballY < rightY + paddleHeight / 2) rightY -= paddleSpeed - 1;
+        if (ballY > rightY + paddleHeight / 2) rightY += paddleSpeed - 1;
+      } else {
+        if (keys["ArrowUp"])   rightY -= paddleSpeed;
+        if (keys["ArrowDown"]) rightY += paddleSpeed;
+      }
+      rightY = Math.max(0, Math.min(HEIGHT - paddleHeight, rightY));
+
+      // Ballbewegung
       ballX += ballSpeedX;
       ballY += ballSpeedY;
       frameCount++;
 
+      // Kollisionen
       if (ballY <= 0 || ballY >= HEIGHT) ballSpeedY *= -1;
-
       if (ballX - ballSize / 2 <= 10 + paddleWidth && ballY > leftY && ballY < leftY + paddleHeight) {
         ballSpeedX *= -1; hitSound.play();
       }
@@ -202,19 +259,16 @@
         ballSpeedX *= -1; hitSound.play();
       }
 
-      if (ballX < 0) {
-        scoreRight++; pointSound.play(); resetBall();
-      }
-      if (ballX > WIDTH) {
-        scoreLeft++; pointSound.play(); resetBall();
-      }
+      // Punkte
+      if (ballX < 0) { scoreRight++; pointSound.play(); resetBall(); }
+      if (ballX > WIDTH) { scoreLeft++; pointSound.play(); resetBall(); }
 
+      // Sieg
       if (scoreLeft >= 5 || scoreRight >= 5) {
         gameOver = true;
         const winner = scoreLeft > scoreRight ? "🎉 Spieler 1 gewinnt!" : "🎉 Spieler 2 gewinnt!";
         drawWinner(winner);
-        const hs = localStorage.getItem("pongHighscore");
-        if (hs === null || parseInt(frameCount) < parseInt(hs)) {
+        if (!useCPU && (!localStorage.getItem("pongHighscore") || frameCount < localStorage.getItem("pongHighscore"))) {
           localStorage.setItem("pongHighscore", frameCount);
         }
       }
@@ -228,12 +282,14 @@
       drawScore();
     }
 
+    // ==== Spiel-Schleife ====
     function gameLoop() {
       if (!gameOver) requestAnimationFrame(gameLoop);
       update();
       draw();
     }
 
+    // ==== Initialer Start ====
     showStartMenu();
   </script>
 </body>
